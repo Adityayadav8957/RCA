@@ -1,0 +1,49 @@
+{
+  "name": "microservice-rca",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "tsx src/tools/launcher.ts",
+    "service": "tsx src/services/service.ts",
+    "rca": "tsx src/rca/server.ts",
+    "load": "tsx src/tools/loadgen.ts",
+    "chaos": "tsx src/tools/chaos.ts",
+    "eval": "tsx src/tools/evaluate.ts",
+    "typecheck": "tsc -p .",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:setup": "tsx src/tools/dbsetup.ts",
+    "bench": "tsx src/tools/bench.ts",
+    "build:demo": "node scripts/build-demo.mjs",
+    "demo": "npm run build:demo && npx --yes http-server demo -p 8080 -c-1",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Automated root-cause analysis for microservices using OpenTelemetry",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.152.0"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "0.57.2",
+    "@opentelemetry/exporter-trace-otlp-http": "0.57.2",
+    "@opentelemetry/instrumentation-http": "0.57.2",
+    "@opentelemetry/instrumentation-ioredis": "0.47.0",
+    "@opentelemetry/instrumentation-pg": "0.51.0",
+    "@opentelemetry/resources": "1.30.1",
+    "@opentelemetry/sdk-metrics": "1.30.1",
+    "@opentelemetry/sdk-node": "0.57.2",
+    "@opentelemetry/sdk-trace-base": "1.30.1",
+    "@opentelemetry/semantic-conventions": "1.28.0",
+    "ioredis": "5.11.1",
+    "pg": "8.23.1"
+  },
+  "private": true
+}

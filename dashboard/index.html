@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Root-Cause Finder</title>
+<style>
+  :root {
+    --bg:#f5f5f7; --surface:#fff; --hover:#fbfbfd; --text:#1d1d1f; --text-body:#424245; --text-2:#6e6e73; --text-3:#86868b; --text-4:#aeaeb2;
+    --faint:#d2d2d7; --hairline:rgba(0,0,0,.07); --accent:#0071e3; --accent-link:#0066cc; --heat:#ff6b00; --heat-bg:rgba(255,107,0,.1); --live:#30d158;
+    --track:#e8e8ed; --seg:rgba(0,0,0,.05); --nav:rgba(245,245,247,.72);
+    --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Helvetica Neue',sans-serif; --mono:ui-monospace,'SF Mono',Menlo,monospace;
+    --r-pill:999px; --r-chip:6px; --r-thumb:12px; --r-card:18px; --r-panel:22px; --r-hero:26px;
+    --sh-panel:0 1px 3px rgba(0,0,0,.05),0 14px 40px rgba(0,0,0,.05); --sh-lift:0 12px 32px rgba(0,0,0,.1); --sh-cta:0 20px 54px rgba(0,113,227,.24);
+    --max-grid:1080px; --pad-x:22px;
+    --ease-out-quart:cubic-bezier(.25,1,.5,1); --ease-spring:cubic-bezier(.32,.72,0,1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --surface:#1c1c1e; --hover:#232326; --text:#f5f5f7; --text-body:#d1d1d6; --text-2:#a1a1a6; --text-3:#8e8e93; --text-4:#636366;
+      --faint:#48484a; --hairline:rgba(255,255,255,.1); --accent:#0a84ff; --accent-link:#64a8ff; --heat:#ff9f0a; --heat-bg:rgba(255,159,10,.16);
+      --track:#2c2c2e; --seg:rgba(255,255,255,.08); --nav:rgba(0,0,0,.6); --sh-panel:0 1px 3px rgba(0,0,0,.4),0 14px 40px rgba(0,0,0,.3); }
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:76px}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.6;font-size:15px}
+  button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* ── glass nav (the one place glass belongs: it overlaps scrolling content) ── */
+  .nav{position:sticky;top:0;z-index:50;background:var(--nav);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--hairline)}
+  .nav-in{max-width:var(--max-grid);margin:0 auto;padding:0 var(--pad-x);height:54px;display:flex;align-items:center;gap:18px}
+  .brand{font-size:15px;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+  .stepper{display:flex;gap:2px;flex:1;min-width:0;justify-content:center;overflow-x:auto;scrollbar-width:none}
+  .stepper a{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:var(--r-pill);font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none;white-space:nowrap;transition:background .2s var(--ease-out-quart),color .2s}
+  .stepper a:hover{background:var(--seg)}
+  .stepper a.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:700;background:var(--seg);color:var(--text-2);flex:none;transition:all .3s var(--ease-out-quart)}
+  .stepper a.done .dot{background:var(--accent);color:#fff}
+  .chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 13px;border-radius:var(--r-pill);background:var(--seg);font-size:12.5px;font-weight:600;white-space:nowrap}
+  .chip i{width:7px;height:7px;border-radius:50%;background:var(--text-4)}
+  .chip.live i{background:var(--live);animation:pulse 2.2s infinite}
+  .chip.bad{background:var(--heat-bg);color:var(--heat)} .chip.bad i{background:var(--heat);animation:pulse-h 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(48,209,88,.5)}70%{box-shadow:0 0 0 7px rgba(48,209,88,0)}100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}}
+  @keyframes pulse-h{0%{box-shadow:0 0 0 0 rgba(255,107,0,.5)}70%{box-shadow:0 0 0 7px rgba(255,107,0,0)}100%{box-shadow:0 0 0 0 rgba(255,107,0,0)}}
+  @media (max-width:820px){.stepper a span.t{display:none}.brand{display:none}}
+
+  /* ── hero ── */
+  .hero{max-width:var(--max-grid);margin:0 auto;padding:clamp(40px,7vw,84px) var(--pad-x) clamp(20px,4vw,36px)}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--text-3);text-transform:uppercase}
+  h1{margin-top:14px;font-size:clamp(34px,6.4vw,64px);font-weight:700;letter-spacing:-.035em;line-height:1.04;max-width:14ch}
+  .hero p{margin-top:18px;font-size:clamp(16px,2.4vw,20px);color:var(--text-2);line-height:1.5;max-width:620px}
+  .hero-actions{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border-radius:var(--r-pill);font-size:15px;font-weight:600;transition:transform .15s var(--ease-out-quart),opacity .15s;text-decoration:none}
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:var(--surface);border:1px solid var(--hairline);box-shadow:0 1px 2px rgba(0,0,0,.05);color:var(--text);font-size:14px;font-weight:550}
+  .btn.sm{height:34px;padding:0 15px;font-size:13px}
+  .btn[disabled]{opacity:.45;pointer-events:none}
+  .story{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:34px;background:var(--surface);border-radius:var(--r-panel);box-shadow:var(--sh-panel);overflow:hidden}
+  .story div{padding:18px 20px} .story div+div{border-left:1px solid var(--hairline)}
+  .story b{display:block;font-size:13px;color:var(--text-3);font-weight:600;letter-spacing:.02em} .story span{display:block;margin-top:4px;font-size:14.5px;font-weight:550;letter-spacing:-.01em;line-height:1.4}
+  @media (max-width:760px){.story{grid-template-columns:1fr 1fr}.story div:nth-child(3){border-left:none}.story div:nth-child(n+3){border-top:1px solid var(--hairline)}}
+
+  /* ── steps ── */
+  main{max-width:var(--max-grid);margin:0 auto;padding:0 var(--pad-x) 80px}
+  .step{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(20px,4vw,48px);padding:clamp(34px,6vw,56px) 0;border-top:1px solid var(--hairline)}
+  @media (max-width:860px){.step{grid-template-columns:1fr}}
+  .intro{align-self:start;position:sticky;top:84px}
+  @media (max-width:860px){.intro{position:static}}
+  .intro h2{margin-top:10px;font-size:clamp(24px,3.4vw,32px);font-weight:700;letter-spacing:-.025em;line-height:1.12}
+  .intro p{margin-top:12px;color:var(--text-2);font-size:15px;line-height:1.6}
+  .intro details{margin-top:14px;font-size:13px;color:var(--text-2)} .intro summary{cursor:pointer;color:var(--accent-link);font-weight:550;list-style:none} .intro summary::-webkit-details-marker{display:none}
+  .intro details p{margin-top:8px;font-size:13px;line-height:1.6}
+  .panel{background:var(--surface);border-radius:var(--r-panel);box-shadow:var(--sh-panel);overflow:hidden;min-width:0}
+  .row{padding:16px clamp(17px,3vw,24px)} .row+.row{border-top:1px solid var(--hairline)}
+  .row-flex{display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap}
+  .row h3{font-size:16.5px;font-weight:600;letter-spacing:-.01em;line-height:1.4}
+  .row p.sub{margin-top:3px;font-size:13.5px;color:var(--text-2);line-height:1.5}
+  .muted{color:var(--text-2)} .small{font-size:12.5px;color:var(--text-3)}
+  .tag{display:inline-block;font-size:11.5px;color:var(--text-2);background:var(--seg);padding:2px 9px;border-radius:var(--r-pill);font-weight:550;margin-left:6px;vertical-align:1px}
+  .tag.heat{color:var(--heat);background:var(--heat-bg);font-weight:650} .tag.acc{color:var(--accent-link);background:rgba(0,113,227,.08)}
+  .seg{display:inline-flex;background:var(--seg);border-radius:var(--r-pill);padding:3px;gap:2px}
+  .seg button{padding:7px 15px;border-radius:var(--r-pill);font-size:13px;font-weight:500;color:var(--text-2);transition:all .25s cubic-bezier(.25,.1,.25,1)}
+  .seg button.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .next{display:flex;justify-content:flex-end;padding:12px clamp(17px,3vw,24px);border-top:1px solid var(--hairline);background:var(--hover)}
+  .next a{font-size:13.5px;font-weight:600;color:var(--accent-link);text-decoration:none}
+
+  /* step 3 */
+  .headline{font-size:clamp(20px,3vw,26px);font-weight:650;letter-spacing:-.02em;line-height:1.25}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr)} .kpis>div{padding:16px clamp(17px,3vw,24px)} .kpis>div+div{border-left:1px solid var(--hairline)}
+  .kpis b{display:block;font-size:12px;font-weight:600;color:var(--text-3);letter-spacing:.02em} .kpis span{display:block;margin-top:2px;font-size:clamp(20px,3vw,26px);font-weight:650;letter-spacing:-.02em}
+  .kpis small{color:var(--text-3);font-weight:500;font-size:13px}
+  @media (max-width:560px){.kpis{grid-template-columns:1fr}.kpis>div+div{border-left:none;border-top:1px solid var(--hairline)}}
+  svg text{fill:var(--text-3);font-family:var(--font)}
+  .chart-wrap{position:relative}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--text-2);margin-top:8px} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+  /* step 4 */
+  .verdict{padding:22px clamp(17px,3vw,26px)}
+  .verdict .name{font-size:clamp(30px,5vw,44px);font-weight:700;letter-spacing:-.03em;line-height:1.05;margin-top:6px}
+  .verdict .why{margin-top:12px;font-size:16px;line-height:1.6;color:var(--text-body);max-width:60ch}
+  .verdict .why b{color:var(--text)}
+  .meter{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--text-2)} .meter .bar{flex:0 0 160px;height:6px;background:var(--track);border-radius:3px;overflow:hidden} .meter .bar i{display:block;height:100%;background:var(--heat);border-radius:3px;transition:width .6s var(--ease-spring)}
+  .rank{display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s} .rank:hover{background:var(--hover)} .rank.sel{background:var(--heat-bg)}
+  .rank .n{width:24px;height:24px;border-radius:50%;background:var(--heat);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+  .rank .nm{font-weight:600;flex:1} .rank .sc{font-size:13px;color:var(--text-2)}
+  .graph-svg{width:100%;height:auto;display:block}
+  .gnode{cursor:pointer} .gnode rect{transition:all .3s var(--ease-out-quart)}
+  .empty{padding:34px 22px;text-align:center;color:var(--text-3);font-size:14px}
+  .empty b{display:block;color:var(--text-2);font-size:16px;margin-bottom:4px;font-weight:600}
+
+  /* step 5 */
+  .sig{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(90px,1fr) 52px;gap:14px;align-items:center}
+  .sig .t{font-weight:600;font-size:14.5px;letter-spacing:-.005em} .sig .d{font-size:12.5px;color:var(--text-3);margin-top:1px;line-height:1.45}
+  .sig .bar{height:7px;background:var(--track);border-radius:4px;overflow:hidden} .sig .bar i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .5s var(--ease-spring)}
+  .sig .v{text-align:right;font-size:13px;color:var(--text-2);font-weight:600}
+  .wf{display:grid;grid-template-columns:150px 1fr 96px;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
+  .wf .tr{position:relative;height:12px;background:var(--seg);border-radius:3px} .wf .b{position:absolute;height:100%;border-radius:3px;min-width:2px}
+  @media (max-width:560px){.wf{grid-template-columns:96px 1fr 70px}}
+  .log{font:12px/1.5 var(--mono);color:var(--text-2);word-break:break-word} .log b{color:var(--text);font-weight:600}
+  .grp{display:flex;gap:10px;align-items:baseline} .grp .c{flex:none;min-width:34px;font-weight:700;color:var(--heat)}
+
+
+  /* ── view toggle + "Everything" mission-control layout ── */
+  .viewseg{flex:none}
+  body.v-all .stepper{visibility:hidden}
+  #allview{display:none;height:max(780px,calc(100vh - 55px));padding:14px;gap:14px;grid-template-rows:auto auto minmax(0,1fr) minmax(190px,23vh);grid-template-columns:minmax(0,1fr);max-width:1800px;margin:0 auto}
+  body.v-all #allview{display:grid} body.v-all #guided{display:none}
+  .a-main{display:grid;gap:14px;grid-template-columns:minmax(250px,.9fr) minmax(0,1.5fr) minmax(0,1.6fr);min-height:0}
+  .ap{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-panel);min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .ap-h{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--hairline);flex:none;flex-wrap:wrap}
+  .ap-h b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+  .ap-b{overflow:auto;min-height:0;flex:1}
+  .kstrip{display:grid;grid-template-columns:1.3fr repeat(4,1fr);background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-panel);overflow:hidden}
+  .kstrip>div{padding:6px 18px} .kstrip>div+div{border-left:1px solid var(--hairline)}
+  .kstrip b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+  .kstrip span{display:block;font-size:19px;font-weight:650;letter-spacing:-.02em;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .kstrip small{font-size:12px;color:var(--text-3);font-weight:500}
+  .kstrip .culprit{color:var(--heat)}
+  .svc-row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 16px;cursor:pointer;border-top:1px solid var(--hairline);font-size:13.5px}
+  .svc-row:first-child{border-top:none} .svc-row:hover{background:var(--hover)} .svc-row.on{background:var(--heat-bg)}
+  .pip{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--faint);background:var(--surface)}
+  .pip.cul{background:var(--heat);border-color:var(--heat)} .pip.aff{border:1.5px dashed var(--text-3)}
+  .svc-row .m{font-size:12px;color:var(--text-3);text-align:right;line-height:1.35} .svc-row .m b{color:var(--text);font-weight:600}
+  .req{display:grid;grid-template-columns:62px 58px 56px minmax(0,1fr);gap:8px;align-items:center;padding:6px 16px;border-top:1px solid var(--hairline);cursor:pointer;font-size:12.5px}
+  .req:hover{background:var(--hover)} .req.sel{background:rgba(0,113,227,.1)}
+  .st{font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:2px 7px;border-radius:var(--r-pill);text-align:center;background:var(--seg);color:var(--text-2)}
+  .st.failed{background:var(--heat);color:#fff} .st.slow{background:var(--heat-bg);color:var(--heat)}
+  .tb{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .tb input{font:inherit;font-size:12.5px;height:28px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--hairline);background:var(--seg);color:var(--text);min-width:120px;width:150px;outline:none}
+  .tb input:focus{border-color:var(--accent)}
+  .seg.s{padding:2px} .seg.s button{padding:4px 11px;font-size:12px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--hairline);flex:none}
+  .fchip{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:var(--r-pill);background:var(--seg);color:var(--text-2);transition:all .15s}
+  .fchip.on{background:var(--text);color:var(--surface)}
+  .ll{display:grid;grid-template-columns:86px 46px 74px minmax(0,1fr) 70px;gap:8px;align-items:baseline;padding:3px 16px;font:12px/1.5 var(--mono);border-left:3px solid transparent;cursor:pointer}
+  .ll:hover{background:var(--hover)} .ll.err{border-left-color:var(--heat);background:var(--heat-bg)} .ll.warn{border-left-color:var(--text-3)}
+  .ll.hit{background:rgba(0,113,227,.13)} .ll.err.hit{background:rgba(0,113,227,.18)}
+  .ll .lv{font-weight:700;font-size:10.5px} .ll.err .lv{color:var(--heat)} .ll .tm{color:var(--text-3)} .ll .sv{color:var(--text-2);font-weight:600;overflow:hidden;text-overflow:ellipsis} .ll .ms{color:var(--text);word-break:break-word} .ll .tr{color:var(--text-4);text-align:right}
+  .insp{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);min-height:0;flex:1}
+  .insp>div{overflow:auto;min-height:0;padding:8px 0} .insp>div+div{border-left:1px solid var(--hairline)}
+  .insp .wf{padding-left:16px;padding-right:16px;grid-template-columns:150px minmax(0,1fr) 132px}
+  .sum{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--text-2)}
+  .sum .pill{padding:2px 10px;border-radius:var(--r-pill);background:var(--seg);font-weight:600}
+  .sum .pill.bad{background:var(--heat);color:#fff}
+  @media (max-width:1180px){
+    #allview{height:auto;grid-template-rows:none} .a-main{grid-template-columns:1fr} .ap{max-height:460px} .insp{grid-template-columns:1fr} .insp>div+div{border-left:none;border-top:1px solid var(--hairline)}
+    .kstrip{grid-template-columns:1fr 1fr} .kstrip>div:nth-child(n+3){border-top:1px solid var(--hairline)} .kstrip>div:nth-child(odd){border-left:none}
+  }
+
+
+  .cbar{flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 22px;padding:9px 16px;overflow:visible}
+  .cg{display:flex;align-items:center;gap:8px;flex-wrap:wrap} .cg.grow{flex:1;min-width:160px}
+  .cg>label{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:650;white-space:nowrap}
+  .cbar select,.cbar input{font:inherit;font-size:12.5px;height:30px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--hairline);background:var(--seg);color:var(--text);outline:none}
+  .cbar input{width:76px} .cbar select:focus,.cbar input:focus{border-color:var(--accent)}
+  .qb{font-size:12px;font-weight:600;padding:4px 11px;border-radius:var(--r-pill);background:var(--seg);color:var(--text-2);transition:all .15s} .qb:hover{background:var(--track)}
+  .qb.on{background:var(--heat-bg);color:var(--heat);box-shadow:inset 0 0 0 1.5px var(--heat)}
+  .afc{font-size:12px;font-weight:600;padding:3px 6px 3px 11px;border-radius:var(--r-pill);background:var(--heat);color:#fff;display:inline-flex;gap:6px;align-items:center}
+  .afc{cursor:pointer;padding:3px 5px 3px 12px}.afc:hover{filter:brightness(.94)}.afc i{font-style:normal;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.3);display:grid;place-items:center;font-size:14px;line-height:1;font-weight:700}.afc i:hover{background:rgba(255,255,255,.55)}
+    @media (max-width:1180px){#allview{min-height:0}}
+
+
+  /* ── guide modal ── */
+  .ov{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.34);backdrop-filter:blur(10px) saturate(160%);-webkit-backdrop-filter:blur(10px) saturate(160%)}
+  .ov.show{display:flex}
+  .modal{width:min(660px,100%);max-height:min(86vh,720px);display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-panel);box-shadow:0 2px 8px rgba(0,0,0,.1),0 30px 80px rgba(0,0,0,.28);overflow:hidden;opacity:0;transform:scale(.96) translateY(8px);filter:blur(6px);transition:all .38s var(--ease-spring)}
+  .ov.show .modal{opacity:1;transform:none;filter:none}
+  .m-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--hairline)}
+  .m-head b{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+  .m-x{width:30px;height:30px;border-radius:50%;background:var(--seg);font-size:16px;line-height:1;display:grid;place-items:center} .m-x:hover{background:var(--track)}
+  .m-body{padding:22px 26px;overflow:auto;flex:1}
+  .m-body h3{font-size:clamp(22px,3.4vw,28px);font-weight:700;letter-spacing:-.025em;line-height:1.15}
+  .m-body p{margin-top:10px;color:var(--text-2);font-size:15px;line-height:1.6} .m-body p b{color:var(--text)}
+  .m-body ul{margin:10px 0 0 18px;color:var(--text-2);font-size:14.5px;line-height:1.6} .m-body li{margin:4px 0} .m-body li b{color:var(--text)}
+  .m-body .try{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+  .m-body table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px} .m-body td{padding:7px 4px;border-top:1px solid var(--hairline);vertical-align:top;color:var(--text-2)} .m-body td:first-child{white-space:nowrap;color:var(--text);font-weight:600;padding-right:14px}
+  .kbd{font:600 11.5px var(--mono);padding:1px 6px;border-radius:5px;background:var(--seg);border:1px solid var(--hairline);color:var(--text)}
+  .m-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-top:1px solid var(--hairline);background:var(--hover)}
+  .m-dots{display:flex;gap:6px} .m-dots i{width:7px;height:7px;border-radius:50%;background:var(--faint);transition:all .25s} .m-dots i.on{background:var(--accent);width:20px;border-radius:4px}
+  .spot{animation:spot 1.1s ease-in-out 3;position:relative;z-index:5}
+  @keyframes spot{0%,100%{box-shadow:0 0 0 0 rgba(255,107,0,0)}50%{box-shadow:0 0 0 5px rgba(255,107,0,.45)}}
+  /* ── log detail + raw json ── */
+  .ldetail{flex:0 0 auto;max-height:46%;display:none;flex-direction:column;border-top:1px solid var(--hairline);background:var(--hover)}
+  .ldetail.show{display:flex}
+  .ldh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 14px;border-bottom:1px solid var(--hairline)} .ldh b{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:650;margin-right:auto}
+  pre.json{margin:0;padding:10px 16px;font:12px/1.55 var(--mono);color:var(--text-body);white-space:pre-wrap;word-break:break-all;overflow:auto;flex:1;user-select:text}
+  pre.json .k{color:var(--accent-link)} pre.json .s{color:var(--text)} pre.json .n{color:var(--heat)}
+  .ll.sel{outline:2px solid var(--accent);outline-offset:-2px;background:rgba(0,113,227,.1)}
+  .rf{display:inline-flex;gap:6px;align-items:center;margin-left:8px}
+  .help{width:30px;height:30px;border-radius:50%;background:var(--seg);font-weight:700;font-size:14px;flex:none} .help:hover{background:var(--track)}
+
+  .sim-only{display:none} body.sim .sim-only{display:revert} body.sim .real-only{display:none}
+  #simChip{display:none;background:rgba(0,113,227,.1);color:var(--accent-link)} body.sim #simChip{display:inline-flex}
+  #tip{position:fixed;z-index:99;pointer-events:none;background:var(--text);color:var(--bg);font-size:12px;padding:6px 10px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .12s;max-width:240px;line-height:1.45}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:var(--r-pill);font-size:13.5px;font-weight:550;opacity:0;transition:all .35s var(--ease-spring);z-index:99;pointer-events:none}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<header class="nav"><div class="nav-in">
+  <span class="brand">Root-Cause Finder</span>
+  <nav class="stepper" id="stepper">
+    <a href="#s1" data-s="1"><b class="dot">1</b><span class="t">Traffic</span></a>
+    <a href="#s2" data-s="2"><b class="dot">2</b><span class="t">Break</span></a>
+    <a href="#s3" data-s="3"><b class="dot">3</b><span class="t">Symptom</span></a>
+    <a href="#s4" data-s="4"><b class="dot">4</b><span class="t">Cause</span></a>
+    <a href="#s5" data-s="5"><b class="dot">5</b><span class="t">Proof</span></a>
+  </nav>
+  <span class="chip" id="simChip" title="Telemetry is generated in your browser by a simulator. The analysis engine is the real one. Nothing is sent anywhere.">Simulated</span>
+  <button class="help" id="helpBtn" title="How to use this page (press ?)">?</button>
+  <div class="seg viewseg" id="viewSeg"><button data-v="guided">Guided</button><button data-v="all">Everything</button></div>
+  <span class="chip" id="status"><i></i><span>connecting…</span></span>
+</div></header>
+
+<div id="guided">
+<section class="hero">
+  <div class="eyebrow"><span class="real-only">Live demo · runs on your machine</span><span class="sim-only">Live demo · simulated in your browser</span></div>
+  <h1>Find the broken service. Automatically.</h1>
+  <p>Five small services handle a checkout. When one breaks, all of them look slow. This page breaks one on purpose, then shows how the system works out which one is really at fault.</p>
+  <div class="hero-actions">
+    <button class="btn primary" id="startDemo">Start the demo</button>
+    <a class="btn ghost" href="#s1">Walk through it myself</a>
+  </div>
+  <div class="story">
+    <div><b>1 · Traffic</b><span>Fake customers keep checking out</span></div>
+    <div><b>2 · Break</b><span>You break one service, on purpose</span></div>
+    <div><b>3 · Symptom</b><span>Checkout gets slow or fails</span></div>
+    <div><b>4 · Cause</b><span>The system names the culprit</span></div>
+  </div>
+</section>
+
+<main>
+  <!-- STEP 1 -->
+  <section class="step" id="s1">
+    <div class="intro">
+      <div class="eyebrow">Step 1</div><h2>Send some traffic</h2>
+      <p>To spot a problem, the system first needs to see what <i>normal</i> looks like. Fake customers hit the checkout page, and every request is recorded as a trace.</p>
+      <details><summary>What's sampling?</summary><p>Real systems can't keep every trace. Here each trace is kept or dropped as a whole, decided by a number derived from its trace ID, so all services agree without talking to each other. Failed and slow traces are always kept as evidence.</p></details>
+      <details><summary>What's a trace?</summary><p>A trace is the diary of one request: which services it visited, in what order, and how long each took. Services pass a trace ID along with every call, so the pieces can be stitched together.</p></details>
+    </div>
+    <div class="panel">
+      <div class="row row-flex">
+        <div><h3>Customer traffic</h3><p class="sub" id="trafficSub">Off. Nothing to learn from yet.</p></div>
+        <div class="seg" id="loadSeg"><button data-rps="0" class="on">Off</button><button data-rps="20">20 / sec</button><button data-rps="60">60 / sec</button></div>
+      </div>
+      <div class="row row-flex">
+        <div style="flex:1;min-width:220px"><h3>Trace sampling</h3><p class="sub" id="sampSub">Keeping every trace.</p></div>
+        <div class="seg" id="sampSeg"><button data-r="1" class="on">Keep 100%</button><button data-r="0.25">25%</button><button data-r="0.05">5%</button></div>
+      </div>
+      <div class="row"><h3>What's running</h3><p class="sub">gateway → users and orders → orders calls payments and inventory → payments and users use <b>Postgres</b>, inventory uses <b>Redis</b>. <span class="real-only">All real, nothing mocked.</span><span class="sim-only">Simulated in your browser, but analysed by the same code that runs against the real services.</span></p></div>
+      <div class="next"><a href="#s2">Next: break something ↓</a></div>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="step" id="s2">
+    <div class="intro">
+      <div class="eyebrow">Step 2</div><h2>Break something</h2>
+      <p>Pick a failure. It is injected into the real service or database, just like a bad deploy or an overloaded server would do.</p>
+      <details class="sim-only"><summary>Is this really breaking things?</summary><p>In this hosted demo the failure is simulated: the simulator makes that service slower or flakier, and the real analysis engine then has to find it, exactly as it would with real services.</p></details>
+      <details class="real-only"><summary>Is this really breaking things?</summary><p>Yes. Slow-downs really sleep inside the service or database. For Postgres, queries genuinely take longer inside the database; for Redis, the server genuinely stalls. Undo removes it.</p></details>
+    </div>
+    <div class="panel">
+      <div class="row row-flex"><div><h3 id="faultState">Nothing is broken</h3><p class="sub" id="faultSub">The system is healthy. Pick a failure below.</p></div><button class="btn ghost sm" id="undoAll" disabled>Undo everything</button></div>
+      <div id="scenarios"></div>
+      <div class="next"><a href="#s3">Next: see the symptom ↓</a></div>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="step" id="s3">
+    <div class="intro">
+      <div class="eyebrow">Step 3</div><h2>See the symptom</h2>
+      <p>This is what a customer feels: the checkout page. It tells you <i>that</i> something is wrong, but not <i>where</i>. That's the hard part of debugging microservices.</p>
+      <details><summary>What is p95?</summary><p>p95 is the time that 95 out of 100 requests beat. Averages hide pain; p95 shows what the unlucky customers experience.</p></details>
+    </div>
+    <div class="panel">
+      <div class="row"><div class="headline" id="headline">Waiting for traffic…</div><p class="sub" id="headlineSub"></p></div>
+      <div class="kpis" style="border-top:1px solid var(--hairline)">
+        <div><b>Checkout speed (p95)</b><span class="num" id="kP95">–</span></div>
+        <div><b>Checkout errors</b><span class="num" id="kErr">–</span></div>
+        <div><b>Requests analysed</b><span class="num" id="kReq">–</span></div>
+      </div>
+      <div class="row"><div class="chart-wrap" id="lineChart"></div></div>
+      <div class="next"><a href="#s4">Next: find the cause ↓</a></div>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="step" id="s4">
+    <div class="intro">
+      <div class="eyebrow">Step 4</div><h2>Find the cause</h2>
+      <p>Every service reports how long it spent on <b>its own work</b> versus <b>waiting on others</b>. A service that is merely waiting is a victim. The one whose <i>own</i> time exploded is the culprit.</p>
+      <details><summary>How does it decide?</summary><p>It compares each service's own time with the 40 seconds before the fault, flags real jumps, then follows the call graph downwards: blame goes to the deepest service that is itself broken. Details are in docs/03-rca-engine.md.</p></details>
+    </div>
+    <div class="panel" id="verdictPanel">
+      <div class="empty"><b>No verdict yet</b>Send traffic and break something first.</div>
+    </div>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="step" id="s5">
+    <div class="intro">
+      <div class="eyebrow">Step 5</div><h2>Check the proof</h2>
+      <p>Don't just trust the answer. See the five pieces of evidence behind it, a real slow request step by step, and the error messages the service logged.</p>
+      <details><summary>Why are logs hidden by default?</summary><p>Logs are noisy. The system only reads error logs from the suspects, and groups identical messages, so you see the signal first.</p></details>
+    </div>
+    <div class="panel">
+      <div class="row row-flex"><div><h3 id="proofTitle">Pick a suspect in step 4</h3><p class="sub" id="proofSub">Evidence appears here once a culprit is found.</p></div>
+        <div class="seg" id="proofSeg"><button data-t="why" class="on">Why</button><button data-t="trace">A slow request</button><button data-t="logs">Error logs</button></div></div>
+      <div id="proofBody"></div>
+    </div>
+  </section>
+</main>
+</div><!-- /guided -->
+
+<!-- ═════ EVERYTHING VIEW: a full console. Control, observe and inspect without leaving the frame. ═════ -->
+<div id="allview">
+  <div class="ap cbar">
+    <div class="cg"><label>Traffic</label><div class="seg s" id="c-load"><button data-rps="0">Off</button><button data-rps="20">20/s</button><button data-rps="60">60/s</button></div></div>
+    <div class="cg"><label>Trace sampling</label><div class="seg s" id="c-samp"><button data-r="1">100%</button><button data-r="0.25">25%</button><button data-r="0.05">5%</button></div></div>
+    <div class="cg"><label>Inject a fault</label>
+      <select id="c-svc"></select><select id="c-type"><option value="latency">latency (ms)</option><option value="errors">error rate (0–1)</option><option value="cpu">CPU burn (ms)</option></select>
+      <input id="c-val" type="number" step="any" value="200" title="value"><button class="btn primary sm" id="c-inject">Inject</button></div>
+    <div class="cg"><label>One-click</label><div class="tb" id="c-quick"></div></div>
+    <div class="cg grow"><label>Active</label><div class="tb" id="c-active"><span class="small">none</span></div></div>
+    <button class="btn ghost sm" id="c-undo" disabled>Undo all</button>
+  </div>
+  <div class="kstrip" id="a-kpis"></div>
+  <div class="a-main">
+    <div class="ap">
+      <div class="ap-h"><b>Services</b><span class="small">click = filter logs + requests</span></div>
+      <div class="ap-b" id="a-svcs"></div>
+    </div>
+    <div class="ap">
+      <div class="ap-h"><div class="seg s" id="a-vseg"><button data-v="speed" class="on">Speed</button><button data-v="graph">Call graph</button><button data-v="work">Own vs waiting</button></div><div class="tb"><span class="small" id="a-vcap"></span><button class="fchip" id="a-vhide">Hide ▲</button></div></div>
+      <div class="ap-b" id="a-viz" style="flex:0 0 26%;padding:6px 14px 8px"></div>
+      <div class="ap-h" style="border-top:1px solid var(--hairline)"><div class="tb"><b>Requests</b><span class="rf" id="a-rf"></span></div>
+        <div class="tb"><div class="seg s" id="a-rseg"><button data-k="problem" class="on">Problems</button><button data-k="error">Failed</button><button data-k="slow">Slow</button><button data-k="all">All</button></div>
+          <div class="seg s" id="a-rng"><button data-s="60" class="on">1m</button><button data-s="300">5m</button><button data-s="600">10m</button></div></div></div>
+      <div class="ap-b" id="a-reqs"></div>
+    </div>
+    <div class="ap">
+      <div class="ap-h"><b>Live logs · every service</b>
+        <div class="tb"><input id="a-q" type="search" placeholder="search text, service, status, trace id…" autocomplete="off" style="width:210px"><div class="seg s" id="a-lseg"><button data-l="info" class="on">All</button><button data-l="warn">Warn+</button><button data-l="error">Errors</button></div></div></div>
+      <div class="chips" id="a-chips"></div>
+      <div class="ap-b" id="a-logs"></div>
+      <div class="ldetail" id="a-ld"><div class="ldh"><b>Selected log · raw JSON</b><button class="fchip" id="a-ld-copy">Copy JSON</button><button class="fchip" id="a-ld-line">Copy line</button><button class="fchip" id="a-ld-tid">Copy trace id</button><button class="fchip" id="a-ld-x">Close ×</button></div><pre class="json" id="a-ld-pre"></pre></div>
+      <div class="ap-h" style="border-top:1px solid var(--hairline);border-bottom:none;padding:6px 16px"><span class="small" id="a-lcount"></span>
+        <div class="tb"><button class="fchip" id="a-only" title="Show only the lines of the request being inspected">Only this request</button><button class="fchip" id="a-pause">Pause</button><button class="fchip" id="a-clear">Clear</button></div></div>
+    </div>
+  </div>
+  <div class="ap">
+    <div class="ap-h"><b>Request inspector</b><div class="sum" id="a-sum">Click a request or any log line.</div></div>
+    <div class="insp"><div id="a-wf"><div class="empty" style="padding:30px 20px">Pick a failed or slow request above. You'll see every service it touched, call by call, and every log line it produced.</div></div><div id="a-tlogs"></div></div>
+  </div>
+</div>
+
+<div class="ov" id="guide" role="dialog" aria-modal="true" aria-label="How to use this page"><div class="modal">
+  <div class="m-head"><b id="g-kicker">Guide</b><button class="m-x" id="g-x" aria-label="Close">×</button></div>
+  <div class="m-body" id="g-body"></div>
+  <div class="m-foot"><button class="btn ghost sm" id="g-back">Back</button><div class="m-dots" id="g-dots"></div><button class="btn primary sm" id="g-next">Next</button></div>
+</div></div>
+<div id="tip"></div><div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const api = (p, o) => fetch(p, o).then((r) => r.json());
+const ms = (v) => (v >= 100 ? Math.round(v) : Math.round(v * 10) / 10) + " ms";
+const pct = (v) => Math.round(v * 100) + "%";
+const NICE = { gateway: "Gateway", orders: "Orders", payments: "Payments", inventory: "Inventory", users: "Users", postgres: "Postgres", redis: "Redis" };
+const nice = (n) => NICE[n] ?? n;
+const DBS = ["postgres", "redis"];
+
+const SCENARIOS = [
+  { id: "payments", title: "Payments gets slow", body: { latencyMs: 200 }, blurb: "Payments waits an extra 200 ms on something. Orders and the gateway will wait on it too, so they'll look slow as well." },
+  { id: "inventory", title: "Inventory starts failing", body: { errorRate: 0.5 }, blurb: "Half of Inventory's requests return an error. The errors bubble up to Orders and the gateway." },
+  { id: "orders", title: "Orders hogs the CPU", body: { cpuBurnMs: 30 }, blurb: "Orders burns 30 ms of CPU on every request and blocks everything else it is doing." },
+  { id: "postgres", title: "Postgres slows down", body: { latencyMs: 200 }, blurb: "The real database takes 200 ms longer per query.", tag: "Tricky: Payments and Users both depend on it" },
+  { id: "redis", title: "Redis stalls", body: { latencyMs: 200 }, blurb: "The real Redis server blocks for 200 ms at a time. Inventory depends on it." },
+];
+
+let A = null, TL = null, ST = null, selected = null, proofTab = "why", lastBaselineOk = false;
+
+/* ─────────── tooltip + toast ─────────── */
+const tip = $("tip");
+document.addEventListener("pointermove", (e) => {
+  const t = e.target.closest?.("[data-tip]");
+  if (!t) { tip.style.opacity = 0; return; }
+  tip.textContent = t.dataset.tip; tip.style.opacity = 1;
+  tip.style.left = Math.min(innerWidth - 250, e.clientX + 14) + "px"; tip.style.top = e.clientY + 16 + "px";
+});
+let toastT; function toast(m) { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600); }
+
+/* ─────────── actions ─────────── */
+async function setLoad(rps) { await api("/api/load", rps ? { method: "POST", body: JSON.stringify({ rps }) } : { method: "DELETE" }); await tick(); }
+async function inject(sc, scroll = true) {
+  const r = await api(`/api/chaos/${sc.id}`, { method: "POST", body: JSON.stringify(sc.body) });
+  if (r.error) return toast(r.error);
+  if (!ST.load.running) { await setLoad(20); toast("Started traffic too, since a fault needs requests to show up."); } else toast(`${sc.title}. Watch steps 3 and 4.`);
+  await tick(); if (scroll) $("s3").scrollIntoView();
+}
+async function undo(sc) { await api(`/api/chaos/${sc.id}`, { method: "DELETE" }); await tick(); }
+async function undoAll() { await api("/api/scenario/clear", { method: "POST" }); selected = null; toast("Cleared. Relearning what normal looks like (about 15 s)."); await tick(); }
+
+$("startDemo").onclick = async () => { await setLoad(20); toast("Traffic started. Now break something."); setTimeout(() => $("s2").scrollIntoView(), 700); };
+$("loadSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) setLoad(+b.dataset.rps); };
+$("undoAll").onclick = undoAll;
+$("proofSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; proofTab = b.dataset.t; renderProof(); };
+
+/* ─────────── narrative: turn numbers into a sentence ─────────── */
+function reasonFor(r) {
+  const isDb = DBS.includes(r.name), n = nice(r.name);
+  if (r.scores.errors > 0 && r.scores.errors >= r.scores.selfTime)
+    return `<b>${n}</b> fails <b>${pct(r.originErrorRate.current)}</b> of the time <i>on its own</i>, not because something it calls is failing.`;
+  if (isDb) return `<b>${n}</b> queries now take <b>${ms(r.selfMs.current)}</b> instead of <b>${ms(r.selfMs.baseline)}</b>.`;
+  return `<b>${n}</b> spends <b>${ms(r.selfMs.current)}</b> on its own work per request, up from <b>${ms(r.selfMs.baseline)}</b>.`;
+}
+function victimsOf(a, culprit) {
+  const edges = a.graph.edges, up = new Set([culprit]);
+  for (let i = 0; i < 4; i++) for (const e of edges) if (up.has(e.to)) up.add(e.from);
+  return a.services.filter((s) => up.has(s.name) && s.name !== culprit && s.role === "affected (inherited)").map((s) => nice(s.name));
+}
+
+/* ─────────── render: header, steps 1-2 ─────────── */
+function renderTop() {
+  const a = A, running = ST.load.running;
+  const flowing = running && a.entry.requests >= 5;
+  const baseOk = (a.services.find((s) => s.name === "gateway")?.baselineRequests ?? 0) >= 30;
+  const active = Object.keys(ST.faults);
+  const symptom = a.entry.p95Ms.baseline > 0 && (a.entry.p95Ms.current >= a.entry.p95Ms.baseline * 1.3 || a.entry.errorRate > 0.05);
+  const verdict = a.suspects.length > 0;
+
+  const chip = $("status");
+  if (!flowing) { chip.className = "chip"; chip.lastChild.textContent = "No traffic"; }
+  else if (!baseOk && !active.length) { chip.className = "chip live"; chip.lastChild.textContent = "Learning normal…"; }
+  else if (a.incident) { chip.className = "chip bad"; chip.lastChild.textContent = "Culprit: " + nice(a.suspects[0].name); }
+  else { chip.className = "chip live"; chip.lastChild.textContent = "All healthy"; }
+
+  const done = { 1: flowing, 2: active.length > 0, 3: active.length > 0 && symptom, 4: verdict, 5: false };
+  document.querySelectorAll("#stepper a").forEach((el) => el.classList.toggle("done", !!done[el.dataset.s]));
+
+  $("trafficSub").textContent = !running ? "Off. Nothing to learn from yet." : flowing ? `Flowing. ${a.entry.requests} checkouts analysed in the current window${baseOk || active.length ? "." : ". Learning what normal looks like…"}` : "Starting up…";
+  document.querySelectorAll("#loadSeg button").forEach((b) => b.classList.toggle("on", +b.dataset.rps === (running ? ST.load.rps : 0)));
+
+  $("faultState").textContent = active.length ? `${active.map(nice).join(" + ")} ${active.length > 1 ? "are" : "is"} broken` : "Nothing is broken";
+  $("faultSub").textContent = active.length ? `Injected ${Math.max(0, Math.round((Date.now() - ST.injectedAt) / 1000))} s ago. See steps 3 and 4.` : "The system is healthy. Pick a failure below.";
+  $("undoAll").disabled = !active.length;
+  const sp = ST.sampling;
+  $("sampSub").textContent = sp.rate >= 1 ? "Keeping every trace. Fine for a demo, but real systems can't afford this." : `Keeping ${pct(sp.rate)} of traces for the statistics, chosen by trace ID so a kept trace is always complete. ${sp.exemplars} failed or slow traces were also kept as evidence.`;
+  document.querySelectorAll("#sampSeg button").forEach((b) => b.classList.toggle("on", Math.abs(+b.dataset.r - sp.rate) < 0.001));
+  $("scenarios").innerHTML = SCENARIOS.map((s, i) => {
+    const on = active.includes(s.id);
+    return `<div class="row row-flex"><div style="flex:1;min-width:220px"><h3>${esc(s.title)}${s.tag ? `<span class="tag heat">${esc(s.tag)}</span>` : ""}</h3><p class="sub">${esc(s.blurb)}</p></div>
+      <button class="btn ${on ? "ghost" : "primary"} sm" data-i="${i}" data-on="${on ? 1 : 0}">${on ? "Undo" : "Break it"}</button></div>`;
+  }).join("");
+  $("scenarios").querySelectorAll("button").forEach((b) => (b.onclick = () => (b.dataset.on === "1" ? undo : inject)(SCENARIOS[+b.dataset.i])));
+}
+
+/* ─────────── step 3: sentence, KPIs, line chart ─────────── */
+function renderSymptom() {
+  const a = A, e = a.entry, active = Object.keys(ST.faults);
+  const ratio = e.p95Ms.baseline ? e.p95Ms.current / e.p95Ms.baseline : 1;
+  let h, sub = "";
+  if (!ST.load.running || e.requests < 5) h = "No customers yet. Start traffic in step 1.";
+  else if (e.errorRate > 0.05) { h = `${pct(e.errorRate)} of checkouts are failing.`; sub = "Customers see errors. The cause is somewhere behind the gateway."; }
+  else if (ratio >= 1.3 && e.p95Ms.current - e.p95Ms.baseline > 15) { h = `Checkout is ${ratio.toFixed(1)}× slower than normal.`; sub = `${ms(e.p95Ms.baseline)} → ${ms(e.p95Ms.current)} for the unlucky 1 in 20. But which service is to blame?`; }
+  else { h = active.length ? "No visible symptom yet…" : "Checkout looks normal."; sub = active.length ? "Give it a few seconds." : "Break something in step 2 and watch this change."; }
+  $("headline").textContent = h; $("headlineSub").textContent = sub;
+  $("kP95").innerHTML = e.p95Ms.baseline ? `${Math.round(e.p95Ms.current)}<small> ms</small> <small>(normal ${Math.round(e.p95Ms.baseline)})</small>` : "–";
+  $("kErr").innerHTML = e.requests ? pct(e.errorRate) : "–";
+  $("kReq").innerHTML = e.requests ? e.requests + (A.sampling.rate < 1 ? `<small> of ~${A.sampling.estimatedEntryRequests}</small>` : "") : "–";
+  lineChart();
+}
+
+function lineChart(boxId = "lineChart", caption = true) {
+  const rows = (TL.gateway ?? []).filter((r) => r.n > 0);
+  const box = $(boxId);
+  if (rows.length < 3) { box.innerHTML = '<div class="empty" style="padding:24px">The chart appears when traffic is flowing.</div>'; return; }
+  const W = 640, H = caption ? 210 : 170, L = 44, R = 64, T = 14, B = 28;
+  const t0 = rows[0].t, t1 = rows[rows.length - 1].t, base = A.entry.p95Ms.baseline;
+  const max = Math.max(60, ...rows.map((r) => r.p95Ms), base * 1.2) * 1.12;
+  const X = (t) => L + ((t - t0) / (t1 - t0 || 1)) * (W - L - R), Y = (v) => T + (1 - v / max) * (H - T - B);
+  const ticks = [0, 0.5, 1].map((f) => Math.round(max * f / 1.12 / 10) * 10);
+  let g = ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--hairline)"/><text x="${L - 8}" y="${Y(v) + 4}" font-size="11" text-anchor="end">${v}</text>`).join("");
+  for (const s of [90, 60, 30, 0]) { const t = t1 - s * 1000; if (t >= t0) g += `<text x="${X(t)}" y="${H - 8}" font-size="11" text-anchor="middle">${s === 0 ? "now" : "-" + s + "s"}</text>`; }
+  if (base) g += `<line x1="${L}" x2="${W - R}" y1="${Y(base)}" y2="${Y(base)}" stroke="var(--text-4)" stroke-dasharray="4 4"/><text x="${W - R + 6}" y="${Y(base) + 4}" font-size="11">normal</text>`;
+  if (A.injectedAt && A.injectedAt >= t0) g += `<line x1="${X(A.injectedAt)}" x2="${X(A.injectedAt)}" y1="${T}" y2="${H - B}" stroke="var(--heat)" stroke-width="1.5"/><text x="${X(A.injectedAt) + 6}" y="${T + 10}" font-size="11" style="fill:var(--heat);font-weight:600">fault injected</text>`;
+  const pts = rows.map((r) => `${X(r.t).toFixed(1)},${Y(r.p95Ms).toFixed(1)}`).join(" ");
+  const last = rows[rows.length - 1];
+  g += `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${X(last.t)}" cy="${Y(last.p95Ms)}" r="4" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
+    <text x="${W - R + 6}" y="${Y(last.p95Ms) - 8}" font-size="12" style="fill:var(--text);font-weight:600">${Math.round(last.p95Ms)} ms</text>
+    <line id="xh" y1="${T}" y2="${H - B}" stroke="var(--text-4)" style="display:none"/><circle id="xd" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2" style="display:none"/>
+    <rect id="hit" x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/>`;
+  box.innerHTML = `${caption ? '<div class="small" style="margin-bottom:6px">Checkout speed over the last 90 s (p95 per second, in milliseconds)</div>' : ""}<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Checkout p95 latency over time">${g}</svg>`;
+  const svg = box.querySelector("svg"), hit = svg.querySelector("#hit"), xh = svg.querySelector("#xh"), xd = svg.querySelector("#xd");
+  hit.onpointermove = (ev) => {
+    const r = svg.getBoundingClientRect(), x = ((ev.clientX - r.left) / r.width) * W;
+    const row = rows.reduce((b, c) => (Math.abs(X(c.t) - x) < Math.abs(X(b.t) - x) ? c : b));
+    xh.setAttribute("x1", X(row.t)); xh.setAttribute("x2", X(row.t)); xh.style.display = ""; xd.setAttribute("cx", X(row.t)); xd.setAttribute("cy", Y(row.p95Ms)); xd.style.display = "";
+    hit.dataset.tip = `${Math.round((t1 - row.t) / 1000)} s ago · p95 ${Math.round(row.p95Ms)} ms · ${row.n} requests`;
+  };
+  hit.onpointerleave = () => { xh.style.display = "none"; xd.style.display = "none"; };
+}
+
+/* ─────────── step 4: verdict, graph, own-vs-waiting bars ─────────── */
+function renderVerdict() {
+  const a = A, box = $("verdictPanel"), active = Object.keys(ST.faults);
+  const learning = (a.services.find((s) => s.name === "gateway")?.baselineRequests ?? 0) < 30;
+  if (!ST.load.running || a.entry.requests < 5) { box.innerHTML = '<div class="empty"><b>No verdict yet</b>Start traffic in step 1.</div>'; return; }
+  if (!a.suspects.length) {
+    box.innerHTML = `<div class="verdict"><div class="eyebrow">Verdict</div><div class="name">${learning && !active.length ? "Learning…" : "All clear"}</div>
+      <p class="why">${learning && !active.length ? "Still collecting a picture of normal behaviour. This takes about 15 seconds." : "No service is behaving differently from normal."}</p></div>
+      <div class="row">${graphSvg()}${legend()}</div>`;
+    bindGraph(); return;
+  }
+  const top = a.suspects[0], rep = a.services.find((s) => s.name === top.name);
+  if (!selected || !a.suspects.find((s) => s.name === selected)) selected = top.name;
+  const victims = victimsOf(a, top.name);
+  box.innerHTML = `<div class="verdict"><div class="eyebrow" style="color:var(--heat)">Most likely root cause</div>
+      <div class="name">${esc(nice(top.name))}${DBS.includes(top.name) ? '<span class="tag">database</span>' : ""}</div>
+      <p class="why">${reasonFor(rep)}${victims.length ? ` ${victims.join(", ")} look${victims.length > 1 ? "" : "s"} slow too, but only because ${victims.length > 1 ? "they wait" : "it waits"} on ${esc(nice(top.name))}. Their own work is unchanged.` : ""}</p>
+      <div class="meter"><span>Score</span><div class="bar"><i style="width:${top.score * 100}%"></i></div><b class="num" style="color:var(--text)">${top.score.toFixed(2)}</b><span>of 1.00</span></div></div>
+    ${a.suspects.length > 1 ? `<div class="row" style="padding:0">${a.suspects.map((s, i) => `<div class="row rank ${s.name === selected ? "sel" : ""}" data-n="${esc(s.name)}"><span class="n">${i + 1}</span><span class="nm">${esc(nice(s.name))}</span><span class="sc num">score ${s.score.toFixed(2)}</span></div>`).join("")}</div>` : ""}
+    <div class="row"><div class="small" style="margin-bottom:6px">Who calls whom. Click a service to inspect it in step 5.</div>${graphSvg()}${legend()}</div>
+    <div class="row"><div class="small" style="margin-bottom:10px">Where each request's time goes: <b>own work</b> vs <b>waiting on others</b></div>${workBars()}</div>
+    <div class="next"><a href="#s5">Next: check the proof ↓</a></div>`;
+  box.querySelectorAll(".rank").forEach((el) => (el.onclick = () => { selected = el.dataset.n; renderVerdict(); renderProof(); }));
+  bindGraph();
+}
+function legend() { return `<div class="legend"><span><i style="background:var(--heat)"></i>Culprit</span><span><i style="background:transparent;border:1.5px dashed var(--text-3)"></i>Slow, but only waiting</span><span><i style="background:var(--surface);border:1.5px solid var(--faint)"></i>Fine</span></div>`; }
+function graphSvg() {
+  const a = A, edges = a.graph.edges, nodes = a.graph.nodes.filter((n) => edges.some((e) => e.from === n || e.to === n) || n === a.entry.service);
+  const depth = { [a.entry.service]: 0 };
+  for (let p = 0; p < 6; p++) for (const e of edges) if (depth[e.from] !== undefined) depth[e.to] = Math.max(depth[e.to] ?? 0, depth[e.from] + 1);
+  const cols = {}; nodes.forEach((n) => (cols[depth[n] ?? 0] ??= []).push(n));
+  const maxC = Math.max(...Object.keys(cols).map(Number)), W = 780, H = 280, pos = {};
+  for (const [d, list] of Object.entries(cols)) list.forEach((n, i) => (pos[n] = { x: 56 + (d * (W - 112)) / Math.max(1, maxC), y: (H / list.length) * (i + 0.5) }));
+  const role = (n) => a.services.find((s) => s.name === n)?.role;
+  let s = '<defs><marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="var(--text-4)"/></marker></defs>';
+  for (const e of edges) { const f = pos[e.from], t = pos[e.to]; if (!f || !t) continue; const hot = role(e.to) === "root-cause suspect" && A.suspects[0]?.name === e.to;
+    s += `<line x1="${f.x + 48}" y1="${f.y}" x2="${t.x - 50}" y2="${t.y}" stroke="${hot ? "var(--heat)" : "var(--text-4)"}" stroke-width="${hot ? 2 : 1.2}" marker-end="url(#ah)"/><text x="${f.x + (t.x - f.x) * 0.5}" y="${f.y + (t.y - f.y) * 0.5 - 7}" font-size="10.5" text-anchor="middle" paint-order="stroke" stroke="var(--surface)" stroke-width="4">${Math.round(e.p95Ms)} ms${e.errorRate > 0.02 ? " · " + pct(e.errorRate) + " err" : ""}</text>`; }
+  for (const n of nodes) { const p = pos[n]; if (!p) continue; const r = role(n), cul = r === "root-cause suspect", aff = r === "affected (inherited)", sel = n === selected;
+    const isDb = DBS.includes(n);
+    s += `<g class="gnode" data-n="${n}"><rect x="${p.x - 48}" y="${p.y - 22}" width="96" height="44" rx="${isDb ? 22 : 12}" fill="${cul ? "var(--heat-bg)" : "var(--surface)"}" stroke="${cul ? "var(--heat)" : aff ? "var(--text-3)" : "var(--faint)"}" stroke-width="${cul || sel ? 2.4 : 1.4}" ${aff ? 'stroke-dasharray="5 4"' : ""}/>
+      <text x="${p.x}" y="${p.y + (isDb ? 5 : -1)}" text-anchor="middle" font-size="13" style="fill:var(--text);font-weight:600">${nice(n)}</text>${isDb ? "" : `<text x="${p.x}" y="${p.y + 14}" text-anchor="middle" font-size="10.5">${cul ? "culprit" : aff ? "waiting" : "fine"}</text>`}</g>`; }
+  return `<svg class="graph-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Service dependency graph">${s}</svg>`;
+}
+function bindGraph() { document.querySelectorAll(".gnode").forEach((g) => (g.onclick = () => { if (A.suspects.find((s) => s.name === g.dataset.n)) { selected = g.dataset.n; renderVerdict(); renderProof(); $("s5").scrollIntoView(); } else toast(`${nice(g.dataset.n)} isn't a suspect: its own work is normal.`); })); }
+
+function workBars() {
+  const svcs = A.services.filter((s) => s.role !== "no data" && s.totalMs.current > 0);
+  const max = Math.max(...svcs.flatMap((s) => [s.totalMs.baseline, s.totalMs.current, s.selfMs.current]), 10);
+  const bar = (tot, self, hot, dim) => { const w = (tot / max) * 100, ow = Math.min(tot, self) / max * 100;
+    return `<div style="position:relative;height:12px;border-radius:4px;background:transparent;width:100%"><div style="position:absolute;left:0;top:0;height:100%;width:${w}%;background:var(--track);border-radius:4px;opacity:${dim ? .6 : 1}" data-tip="Total ${ms(tot)} per request"></div><div style="position:absolute;left:0;top:0;height:100%;width:${ow}%;background:${hot ? "var(--heat)" : "var(--text-2)"};border-radius:4px;opacity:${dim ? .45 : 1};min-width:2px" data-tip="Own work ${ms(self)} of ${ms(tot)}"></div></div>`; };
+  return svcs.map((s) => { const hot = A.suspects[0]?.name === s.name;
+    return `<div style="display:grid;grid-template-columns:84px 1fr 150px;gap:12px;align-items:center;margin:9px 0"><b style="font-size:13.5px">${nice(s.name)}</b>
+      <div style="display:grid;gap:4px">${bar(s.totalMs.baseline, s.selfMs.baseline, false, true)}${bar(s.totalMs.current, s.selfMs.current, hot, false)}</div>
+      <div class="small num"><div style="opacity:.8">normal ${ms(s.selfMs.baseline)} own</div><div style="color:${hot ? "var(--heat)" : "var(--text-2)"};font-weight:600">now ${ms(s.selfMs.current)} own</div></div></div>`; }).join("") +
+    `<div class="legend"><span><i style="background:var(--text-2)"></i>Own work</span><span><i style="background:var(--heat)"></i>Culprit's own work</span><span><i style="background:var(--track)"></i>Waiting on others</span><span>Top bar = normal, bottom bar = now</span></div>`;
+}
+
+/* ─────────── step 5: proof ─────────── */
+const SIGNALS = [
+  ["selfTime", "Its own work got slower", "Time spent inside the service itself, not waiting on others, jumped versus normal."],
+  ["errors", "It fails on its own", "Errors that did not come from a service it calls."],
+  ["criticalPath", "Slow requests spend their time here", "In the slowest checkouts, this service takes a bigger share of the total."],
+  ["precedence", "It went wrong first", "Culprits go wrong before the services that depend on them."],
+  ["leaf", "Nothing deeper is also broken", "Blame goes to the deepest broken service, so a broken dependency would lower this score."],
+];
+let proofReq = 0;
+async function renderProof() {
+  const body = $("proofBody");
+  if (!A.suspects.length || !selected) { $("proofTitle").textContent = "Pick a suspect in step 4"; $("proofSub").textContent = "Evidence appears here once a culprit is found."; body.innerHTML = '<div class="empty"><b>Nothing to prove yet</b>Break something and a verdict will appear.</div>'; return; }
+  document.querySelectorAll("#proofSeg button").forEach((b) => b.classList.toggle("on", b.dataset.t === proofTab));
+  const r = A.services.find((s) => s.name === selected);
+  $("proofTitle").textContent = `Evidence for ${nice(selected)}`;
+  $("proofSub").textContent = proofTab === "why" ? "Five signals, combined into one score." : proofTab === "trace" ? "The slowest checkout in the last 20 s, call by call." : "Error messages this service logged during the incident.";
+  const id = ++proofReq;
+  if (proofTab === "why") {
+    const W = A.weights, total = SIGNALS.reduce((t, [k]) => t + r.scores[k] * W[k === "selfTime" ? "selfTime" : k], 0);
+    body.innerHTML = SIGNALS.map(([k, t, d]) => `<div class="row sig"><div><div class="t">${t}</div><div class="d">${d}</div></div><div class="bar"><i style="width:${r.scores[k] * 100}%"></i></div><div class="v num" data-tip="Weight ${Math.round(W[k] * 100)}% of the final score">+${(r.scores[k] * W[k]).toFixed(2)}</div></div>`).join("") +
+      `<div class="row row-flex"><b>Total score</b><b class="num" style="font-size:20px;color:var(--heat)">${total.toFixed(2)}</b></div>` +
+      (r.evidence.length ? `<div class="row"><div class="small" style="margin-bottom:6px">In plain words</div><ul style="padding-left:18px;color:var(--text-body);font-size:14px">${r.evidence.map((e) => `<li style="margin:3px 0">${esc(e)}</li>`).join("")}</ul></div>` : "");
+  } else if (proofTab === "trace") {
+    const t = (await api("/api/traces?kind=slow&seconds=20&limit=1"))[0];
+    if (id !== proofReq) return;
+    if (!t) { body.innerHTML = '<div class="empty">No traces in the last 20 s.</div>'; return; }
+    const total = Math.max(...t.spans.map((s) => s.offsetMs + s.durMs), 1);
+    body.innerHTML = `<div class="row small">One checkout took <b style="color:var(--text)">${t.durMs} ms</b>. Orange bars belong to ${nice(selected)}.</div><div class="row">${t.spans.filter((s) => s.kind !== "internal" || s.service === selected).map((s) => `<div class="wf"><div>${esc(s.name)}</div><div class="tr"><div class="b" style="left:${(s.offsetMs / total) * 100}%;width:${(s.durMs / total) * 100}%;background:${s.service === selected || s.name.includes(selected) ? "var(--heat)" : "var(--text-3)"};${s.error ? "outline:2px solid var(--heat)" : ""}"></div></div><div class="num">${s.durMs} ms</div></div>`).join("")}</div>`;
+  } else {
+    const logs = (await api(`/api/logs?service=${selected}&seconds=40&limit=400`)).filter((l) => l.level === "error");
+    if (id !== proofReq) return;
+    if (!logs.length) { body.innerHTML = `<div class="empty"><b>No error logs</b>${nice(selected)} is slow but not failing, so it logged no errors. Slowness shows up in traces, not logs.</div>`; return; }
+    const g = {}; for (const l of logs) g[l.msg] = (g[l.msg] ?? 0) + 1;
+    body.innerHTML = `<div class="row">${Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([m, c]) => `<div class="grp" style="margin:6px 0"><span class="c num">${c}×</span><span class="log"><b>${esc(m)}</b></span></div>`).join("")}</div>
+      <div class="row"><div class="small" style="margin-bottom:6px">Latest raw lines</div>${logs.slice(-3).map((l) => `<div class="log">${new Date(l.ts).toLocaleTimeString()} ${esc(l.msg)}<br><span style="color:var(--text-4)">trace ${(l.trace_id ?? "").slice(0, 12)}…</span></div>`).join("")}</div>`;
+  }
+}
+
+
+/* ─────────── sampling control + view toggle ─────────── */
+$("sampSeg").onclick = async (e) => { const b = e.target.closest("button"); if (!b) return; await api("/api/sampling", { method: "POST", body: JSON.stringify({ rate: +b.dataset.r }) }); toast(+b.dataset.r < 1 ? `Now keeping ${pct(+b.dataset.r)} of traces. Detection should still work, just from fewer requests.` : "Keeping every trace again."); tick(); };
+let VIEW = "all";
+function setView(v, push = true) {
+  VIEW = v; document.body.classList.toggle("v-all", v === "all");
+  document.querySelectorAll("#viewSeg button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+  if (push) history.replaceState(null, "", v === "all" ? location.pathname : "#guided");
+  tick();
+}
+$("viewSeg").onclick = (e) => { const b = e.target.closest("button"); if (b) setView(b.dataset.v); };
+
+/* ─────────── EVERYTHING view: control + observe + inspect in one frame ─────────── */
+let LOGS = [], seen = new Set(), lastLogTs = 0, paused = false, lvl = "info", svcFilter = new Set(), qtext = "", reqKind = "problem", rangeSec = 60, vizTab = "speed", onlyThis = false;
+let inspRaw = false, REQS = [], inspectId = null, INSP = null, logDirty = true, lastInspFetch = 0, ctlBuilt = false;
+const RANK = { info: 0, warn: 1, error: 2 };
+const clock = (ts) => { const d = new Date(ts); return d.toLocaleTimeString([], { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0"); };
+const ROLE_SHORT = { "root-cause suspect": "culprit", "affected (inherited)": "waiting", healthy: "", "no data": "no data" };
+const segOn = (id, pred) => document.querySelectorAll(`#${id} button`).forEach((b) => b.classList.toggle("on", pred(b)));
+const faultLabel = (svc, f) => `${nice(svc)} · ${f.latencyMs !== undefined ? "latency " + f.latencyMs + " ms" : f.errorRate !== undefined ? "errors " + pct(f.errorRate) : f.cpuBurnMs !== undefined ? "CPU " + f.cpuBurnMs + " ms" : "fault"}`;
+const TYPE_DEFAULT = { latency: 200, errors: 0.5, cpu: 30 };
+
+/* --- controls --- */
+function buildControls() {
+  if (ctlBuilt || !A) return; ctlBuilt = true;
+  $("c-svc").innerHTML = A.graph.nodes.map((n) => `<option value="${n}">${nice(n)}${DBS.includes(n) ? " (db)" : ""}</option>`).join("");
+  $("c-quick").innerHTML = SCENARIOS.map((sc, i) => `<button class="qb" data-i="${i}" title="${esc(sc.blurb)}">${esc(sc.title)}</button>`).join("");
+}
+$("c-load").onclick = (e) => { const b = e.target.closest("button"); if (b) setLoad(+b.dataset.rps); };
+$("c-samp").onclick = async (e) => { const b = e.target.closest("button"); if (!b) return; await api("/api/sampling", { method: "POST", body: JSON.stringify({ rate: +b.dataset.r }) }); tick(); };
+$("c-quick").onclick = async (e) => { const b = e.target.closest(".qb"); if (!b) return; const sc = SCENARIOS[+b.dataset.i]; if (ST.faults[sc.id]) await undo(sc); else await inject(sc, false); };
+$("c-undo").onclick = undoAll;
+$("c-active").onclick = async (e) => { const c = e.target.closest(".afc"); if (c) { await api(`/api/chaos/${c.dataset.s}`, { method: "DELETE" }); tick(); } };
+$("c-type").onchange = () => { $("c-val").value = TYPE_DEFAULT[$("c-type").value]; };
+$("c-svc").onchange = () => { const db = DBS.includes($("c-svc").value); if (db) { $("c-type").value = "latency"; $("c-val").value = 200; } for (const o of $("c-type").options) o.disabled = db && o.value !== "latency"; };
+$("c-inject").onclick = async () => {
+  const svc = $("c-svc").value, type = $("c-type").value, v = +$("c-val").value;
+  const body = { latency: { latencyMs: v }, errors: { errorRate: v }, cpu: { cpuBurnMs: v } }[type];
+  await inject({ id: svc, title: `${nice(svc)} ${type} ${v}`, body }, false);
+};
+
+/* --- panel options --- */
+$("a-vseg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; vizTab = b.dataset.v; segOn("a-vseg", (x) => x === b); renderViz(); };
+$("a-lseg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; lvl = b.dataset.l; segOn("a-lseg", (x) => x === b); logDirty = true; qtext ? runSearch() : renderLogs(); };
+$("a-rseg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; reqKind = b.dataset.k; segOn("a-rseg", (x) => x === b); tick(); };
+$("a-rng").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; rangeSec = +b.dataset.s; segOn("a-rng", (x) => x === b); tick(); };
+let SEARCH = [], searchTimer;
+async function runSearch() {
+  if (!qtext) { SEARCH = []; logDirty = true; renderLogs(); return; }
+  // Search the engine's whole 10-minute log store, not just the lines the browser happens to hold.
+  SEARCH = await api(`/api/logs?q=${encodeURIComponent(qtext)}&seconds=600&limit=500&level=${lvl}`);
+  logDirty = true; renderLogs();
+}
+$("a-q").oninput = (e) => { qtext = e.target.value.trim().toLowerCase(); clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 200); logDirty = true; renderLogs(); };
+$("a-pause").onclick = () => { paused = !paused; $("a-pause").textContent = paused ? "Resume" : "Pause"; $("a-pause").classList.toggle("on", paused); if (!paused) { logDirty = true; renderLogs(); } };
+$("a-only").onclick = () => { onlyThis = !onlyThis; $("a-only").classList.toggle("on", onlyThis); logDirty = true; renderLogs(); };
+$("a-clear").onclick = () => { LOGS = []; seen.clear(); logDirty = true; renderLogs(); };
+let selLog = null, SHOWN = new Map();
+const logKey = (l) => `${l.ts}|${l.service}|${l.span_id ?? ""}|${l.msg}`;
+const hl = (obj) => esc(JSON.stringify(obj, null, 2)).replace(/(&quot;[\w.\-]+&quot;)(:)/g, '<span class="k">$1</span>$2').replace(/: (&quot;.*?&quot;)(,?)$/gm, ': <span class="s">$1</span>$2').replace(/: (-?\d+\.?\d*)(,?)$/gm, ': <span class="n">$1</span>$2');
+const copy = (txt, msg) => { navigator.clipboard?.writeText(txt); toast(msg); };
+function showLogDetail() {
+  const box = $("a-ld");
+  box.classList.toggle("show", !!selLog);
+  if (!selLog) return;
+  $("a-ld-pre").innerHTML = hl(selLog);
+  $("a-ld-tid").disabled = !selLog.trace_id;
+}
+$("a-logs").onclick = (e) => {
+  const r = e.target.closest(".ll"); if (!r) return;
+  selLog = SHOWN.get(r.dataset.k) ?? null; showLogDetail(); logDirty = true; renderLogs();
+  if (r.dataset.t) inspect(r.dataset.t);
+};
+$("a-ld-copy").onclick = () => selLog && copy(JSON.stringify(selLog, null, 2), "Log copied as JSON");
+$("a-ld-line").onclick = () => selLog && copy(`${new Date(selLog.ts).toISOString()} ${selLog.level.toUpperCase()} ${selLog.service} ${selLog.msg}${selLog.trace_id ? " trace=" + selLog.trace_id : ""}`, "Log line copied");
+$("a-ld-tid").onclick = () => selLog?.trace_id && copy(selLog.trace_id, "Trace id copied");
+$("a-ld-x").onclick = () => { selLog = null; showLogDetail(); logDirty = true; renderLogs(); };
+$("a-vhide").onclick = () => { const v = $("a-viz"), hide = v.style.display !== "none"; v.style.display = hide ? "none" : ""; $("a-vhide").textContent = hide ? "Show ▼" : "Hide ▲"; };
+$("a-reqs").onclick = (e) => { const r = e.target.closest(".req"); if (r) inspect(r.dataset.t); };
+const toggleSvc = (n) => { svcFilter.has(n) ? svcFilter.delete(n) : svcFilter.add(n); logDirty = true; renderAllStatic(); renderReqs(); renderLogs(); };
+$("a-svcs").onclick = (e) => { const r = e.target.closest(".svc-row"); if (r) toggleSvc(r.dataset.n); };
+$("a-rf").onclick = (e) => { const c = e.target.closest(".fchip"); if (c) toggleSvc(c.dataset.n); };
+$("a-chips").onclick = (e) => { const c = e.target.closest(".fchip"); if (!c) return; if (c.dataset.n === "*") { svcFilter.clear(); logDirty = true; renderAllStatic(); renderReqs(); renderLogs(); } else toggleSvc(c.dataset.n); };
+$("a-viz").onclick = (e) => { const g = e.target.closest(".gnode"); if (g) toggleSvc(g.dataset.n); };
+
+function inspect(id) { inspectId = id; INSP = null; lastInspFetch = 0; logDirty = true; renderReqs(); renderLogs(); fetchInspector(true); }
+async function fetchInspector(force) {
+  if (!inspectId || (!force && Date.now() - lastInspFetch < 3000)) return;
+  lastInspFetch = Date.now();
+  const id = inspectId, r = await fetch("/api/trace?id=" + id);
+  if (id !== inspectId) return;
+  INSP = r.ok ? await r.json() : { gone: true };
+  renderInspector();
+}
+
+/* --- renderers --- */
+function renderAllStatic() {
+  buildControls();
+  const a = A, e = a.entry, top = a.suspects[0], dur = a.window.windowMs / 1000, sp = ST.sampling;
+  const rps = Math.round(a.sampling.estimatedEntryRequests / dur), active = Object.entries(ST.faults);
+  // controls reflect live server state
+  segOn("c-load", (b) => +b.dataset.rps === (ST.load.running ? ST.load.rps : 0));
+  segOn("c-samp", (b) => Math.abs(+b.dataset.r - sp.rate) < 0.001);
+  document.querySelectorAll("#c-quick .qb").forEach((b) => b.classList.toggle("on", !!ST.faults[SCENARIOS[+b.dataset.i].id]));
+  $("c-active").innerHTML = active.length ? active.map(([svc, f]) => `<span class="afc" data-s="${svc}" title="Click to undo">${esc(faultLabel(svc, f))}<i>×</i></span>`).join("") : '<span class="small">none, the system is healthy</span>';
+  $("c-undo").disabled = !active.length;
+
+  $("a-kpis").innerHTML = `
+    <div><b>Status</b><span class="${a.incident ? "culprit" : ""}">${!ST.load.running ? "No traffic" : a.incident ? "Culprit: " + nice(top.name) : e.requests < 5 ? "Warming up…" : "All healthy"}</span><small>${a.incident ? "score " + top.score.toFixed(2) : active.length + " fault(s) injected"}</small></div>
+    <div><b>Checkout p95</b><span class="num">${e.p95Ms.current ? Math.round(e.p95Ms.current) : "–"}<small> ms · normal ${Math.round(e.p95Ms.baseline) || "–"}</small></span></div>
+    <div><b>Checkout errors</b><span class="num" style="${e.errorRate > 0.05 ? "color:var(--heat)" : ""}">${e.requests ? pct(e.errorRate) : "–"}</span></div>
+    <div><b>Throughput</b><span class="num">${rps}<small> req/s</small></span></div>
+    <div><b>Sampling</b><span class="num">${pct(sp.rate)}<small> · ${sp.exemplars} evidence</small></span></div>`;
+
+  $("a-svcs").innerHTML = a.services.map((s) => {
+    const cls = s.role === "root-cause suspect" ? "cul" : s.role === "affected (inherited)" ? "aff" : "";
+    return `<div class="svc-row ${svcFilter.has(s.name) ? "on" : ""}" data-n="${s.name}" title="${esc(s.evidence[0] ?? "")}"><span class="pip ${cls}"></span><div><b>${nice(s.name)}</b>${DBS.includes(s.name) ? '<span class="tag">db</span>' : ""}${ROLE_SHORT[s.role] ? `<span class="tag ${cls === "cul" ? "heat" : ""}">${ROLE_SHORT[s.role]}</span>` : ""}</div>
+      <div class="m num"><b>${ms(s.selfMs.current)}</b> own <span style="opacity:.7">(was ${ms(s.selfMs.baseline)})</span><br>p95 ${ms(s.durP95.current)} · ${s.requests ? pct(s.errorRate.current) : "–"} err</div></div>`;
+  }).join("");
+  const names = a.services.filter((s) => !DBS.includes(s.name)).map((s) => s.name);
+  $("a-chips").innerHTML = `<button class="fchip ${svcFilter.size ? "" : "on"}" data-n="*">All services</button>` + names.map((n) => `<button class="fchip ${svcFilter.has(n) ? "on" : ""}" data-n="${n}">${nice(n)}</button>`).join("");
+  renderViz();
+}
+
+function renderViz() {
+  if (!A) return;
+  const box = $("a-viz");
+  $("a-vcap").textContent = vizTab === "speed" ? "checkout p95 per second, last 90 s" : vizTab === "graph" ? "click a node to filter logs" : "top bar = normal, bottom bar = now";
+  if (vizTab === "speed") lineChart("a-viz", false);
+  else if (vizTab === "graph") { box.innerHTML = graphSvg() + legend(); }
+  else box.innerHTML = workBars();
+}
+
+function renderReqs() {
+  const f = [...svcFilter], rows = f.length ? REQS.filter((r) => r.blame && f.includes(r.blame)) : REQS;
+  $("a-rf").innerHTML = f.length ? f.map((n) => `<button class="fchip on" data-n="${n}" title="Remove filter">only at ${nice(n)} ×</button>`).join("") : "";
+  $("a-reqs").innerHTML = rows.length ? rows.map((r) => `<div class="req ${r.traceId === inspectId ? "sel" : ""}" data-t="${r.traceId}"><span class="num small">${clock(r.at).slice(0, 8)}</span><span class="st ${r.status}">${r.status.toUpperCase()}</span><span class="num">${Math.round(r.durMs)} ms</span><span class="small">${r.blame ? "at <b style='color:var(--text)'>" + nice(r.blame) + "</b>" : ""}</span></div>`).join("")
+    : `<div class="empty" style="padding:22px"><b>${f.length ? "No requests failed or slowed at " + f.map(nice).join(", ") : reqKind === "problem" ? "No failed or slow requests" : "No " + (reqKind === "error" ? "failed " : reqKind === "slow" ? "slow " : "") + "requests"}</b>${f.length ? "Click the filter above to clear it." : ST.load.running ? "Inject a fault above and requests will appear here." : "Turn traffic on above first."}</div>`;
+}
+
+function renderLogs() {
+  if (paused || !logDirty) return;
+  logDirty = false;
+  const min = RANK[lvl], real = [...svcFilter].filter((n) => !DBS.includes(n)), rows = [], src = qtext ? [...SEARCH].reverse() : [...LOGS].reverse();
+  for (const l of src) {
+    if (rows.length >= 300) break;
+    if (RANK[l.level] < min || (real.length && !real.includes(l.service)) || (onlyThis && l.trace_id !== inspectId)) continue;
+    rows.push(l);
+  }
+  SHOWN = new Map(rows.map((l) => [logKey(l), l]));
+  const sk = selLog ? logKey(selLog) : null;
+  $("a-logs").innerHTML = rows.map((l) => { const k = logKey(l); return `<div class="ll ${l.level === "error" ? "err" : l.level === "warn" ? "warn" : ""} ${l.trace_id && l.trace_id === inspectId ? "hit" : ""} ${k === sk ? "sel" : ""}" data-k="${esc(k)}" data-t="${l.trace_id ?? ""}"><span class="tm">${clock(l.ts)}</span><span class="lv">${l.level.toUpperCase()}</span><span class="sv">${esc(l.service)}</span><span class="ms">${esc(l.msg)}</span><span class="tr">${(l.trace_id ?? "").slice(0, 6)}</span></div>`; }).join("") || `<div class="empty" style="padding:22px">${qtext ? `<b>No log lines match “${esc(qtext)}”</b>Searched the last 10 minutes. Try a service name, ERROR, a status like 502, or a trace id.` : "No log lines match the filters."}</div>`;
+  $("a-lcount").textContent = qtext ? `${rows.length} match${rows.length === 1 ? "" : "es"} for “${qtext}” in the last 10 min` : `${rows.length} shown · ${LOGS.length} buffered · click a line for its raw JSON`;
+}
+
+function renderInspector() {
+  const w = $("a-wf"), lg = $("a-tlogs"), sum = $("a-sum");
+  if (!inspectId) return;
+  if (!INSP) { w.innerHTML = '<div class="empty" style="padding:30px">Loading…</div>'; return; }
+  if (INSP.gone) { w.innerHTML = '<div class="empty" style="padding:30px"><b>Trace not available</b>It was sampled out, or is older than the 10-minute retention.</div>'; lg.innerHTML = ""; sum.textContent = ""; return; }
+  const t = INSP, services = new Set(t.logs.map((l) => l.service)), total = Math.max(...t.spans.map((x) => x.offsetMs + x.durMs), 1);
+  sum.innerHTML = `<span class="pill ${t.error ? "bad" : ""}">${t.error ? "FAILED" : "OK"}</span><span class="pill num">${t.durMs} ms</span>${t.failedAt ? `<span>failed at <b style="color:var(--heat)">${nice(t.failedAt)}</b></span>` : ""}<span>${t.logs.length} log lines · ${services.size} services</span><span class="num" style="color:var(--text-4)">${t.traceId.slice(0, 10)}…</span><button class="fchip ${inspRaw ? "on" : ""}" id="a-raw">${inspRaw ? "Timeline view" : "Raw JSON"}</button><button class="fchip" id="a-copy">${inspRaw ? "Copy JSON" : "Copy id"}</button>`;
+  $("a-copy").onclick = () => inspRaw ? copy(JSON.stringify(t, null, 2), "Request copied as JSON") : copy(t.traceId, "Trace id copied");
+  $("a-raw").onclick = () => { inspRaw = !inspRaw; renderInspector(); };
+  if (inspRaw) { w.innerHTML = `<pre class="json">${hl(t)}</pre>`; lg.innerHTML = "" ; w.parentElement.style.gridTemplateColumns = "1fr"; lg.style.display = "none"; return; }
+  w.parentElement.style.gridTemplateColumns = ""; lg.style.display = "";
+  w.innerHTML = t.spans.filter((x) => x.kind !== "internal" || x.error).map((x) => `<div class="wf"><div>${esc(x.name)}</div><div class="tr"><div class="b" style="left:${(x.offsetMs / total) * 100}%;width:${(x.durMs / total) * 100}%;${x.error ? (x.service === t.failedAt ? "background:var(--heat)" : "background:var(--heat-bg);outline:1.5px solid var(--heat)") : "background:var(--text-3)"}"></div></div><div class="num">${x.durMs} ms${x.selfMs !== undefined ? ` <span class="small">(own ${x.selfMs})</span>` : ""}</div></div>`).join("");
+  lg.innerHTML = [...t.logs].sort((a, b) => a.ts - b.ts).map((l) => `<div class="ll ${l.level === "error" ? "err" : l.level === "warn" ? "warn" : ""}" style="grid-template-columns:62px 44px 72px minmax(0,1fr);cursor:default"><span class="tm">+${Math.max(0, Math.round(l.ts - t.startedAt))}ms</span><span class="lv">${l.level.toUpperCase()}</span><span class="sv">${esc(l.service)}</span><span class="ms">${esc(l.msg)}</span></div>`).join("") || '<div class="empty" style="padding:22px">No log lines for this request yet.</div>';
+}
+
+async function renderAll() {
+  renderAllStatic();
+  const since = lastLogTs ? lastLogTs - 1 : Date.now() - 45000;
+  const [reqs, fresh] = await Promise.all([api(`/api/requests?kind=${reqKind}&seconds=${rangeSec}&limit=60`), api(`/api/logs?since=${since}&limit=800`)]);
+  REQS = reqs;
+  for (const l of fresh) { const k = `${l.ts}|${l.service}|${l.span_id ?? ""}|${l.msg}`; if (seen.has(k)) continue; seen.add(k); LOGS.push(l); logDirty = true; lastLogTs = Math.max(lastLogTs, l.ts); }
+  if (LOGS.length > 4000) { LOGS = LOGS.slice(-3000); seen = new Set(LOGS.map((l) => `${l.ts}|${l.service}|${l.span_id ?? ""}|${l.msg}`)); }
+  if (!inspectId && REQS.length) { inspectId = REQS[0].traceId; fetchInspector(true); }
+  if (qtext) await runSearch();
+  renderReqs(); renderLogs(); fetchInspector(false); if (INSP) renderInspector();
+}
+
+
+/* ─────────── Guide modal ─────────── */
+const spot = (id) => { setView("all"); closeGuide(); const el = $(id); if (!el) return; el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.remove("spot"); void el.offsetWidth; el.classList.add("spot"); setTimeout(() => el.classList.remove("spot"), 3600); };
+const GUIDE = [
+  { k: "Welcome", h: "Find the broken service, automatically", b: () => `<p>Five small services handle a checkout and talk to ${window.__SIM__ ? "a simulated" : "a real"} <b>Postgres</b> and <b>Redis</b>${window.__SIM__ ? " (this hosted demo runs entirely in your browser; the analysis engine is the real one)" : ""}. When one breaks, <b>all of them look slow</b>. This console shows how the system works out which one is really at fault.</p>
+      <ul><li><b>Everything</b> (this page) is a full console: control the system, watch it, and inspect one request.</li><li><b>Guided</b> (top bar) is the slower, step-by-step explanation of the same ideas.</li></ul><p>This tour takes about a minute and you can try each step as you go.</p>` },
+  { k: "Step 1 of 5", h: "Send some traffic", b: () => `<p>The system needs normal traffic first so it knows what <b>healthy</b> looks like. Use <b>Traffic</b> in the top-left of the controls.</p>
+      <div class="try"><button class="btn primary sm" data-do="traffic">Start 20 requests/sec</button><button class="btn ghost sm" data-do="spot-traffic">Show me where</button></div><p class="small" style="margin-top:12px">Wait about 15 seconds so it can learn normal behaviour before you break anything.</p>` },
+  { k: "Step 2 of 5", h: "Break something", b: () => `<p>Pick a failure. It is injected into the <b>real</b> service or database.</p>
+      <ul><li><b>One-click faults:</b> five ready-made scenarios. Click again to undo.</li><li><b>Inject a fault:</b> choose any service, a type (latency, error rate, CPU) and a value.</li><li><b>Active:</b> every injected fault is a chip. Click a chip (the <b>×</b>) to remove just that one. <b>Undo all</b> clears everything.</li></ul>
+      <div class="try"><button class="btn primary sm" data-do="break">Break Inventory (50% errors)</button><button class="btn ghost sm" data-do="spot-quick">Show me where</button></div>` },
+  { k: "Step 3 of 5", h: "Find the culprit", b: () => `<p>Look at the top of the screen and the <b>Services</b> panel:</p>
+      <ul><li><b>Status</b> names the culprit and how sure the system is (score out of 1).</li><li>An <b>orange dot</b> is the culprit. A <b>dashed circle</b> is a service that is only <i>waiting</i> on it, a victim.</li><li><b>Click a service</b> to filter the logs and the requests to it. Click the orange chip above Requests to clear it.</li><li>The <b>Call graph</b> and <b>Own vs waiting</b> tabs show the same answer as pictures.</li></ul>
+      <div class="try"><button class="btn ghost sm" data-do="spot-svcs">Show Services</button><button class="btn ghost sm" data-do="spot-kpis">Show Status</button></div>` },
+  { k: "Step 4 of 5", h: "Inspect one request", b: () => `<p>The <b>Requests</b> list shows failed and slow checkouts, and where each one went wrong. Click any row. The <b>Request inspector</b> at the bottom opens:</p>
+      <ul><li><b>Left:</b> every call the request made. The <b>solid orange</b> bar is where the failure <i>started</i>; hollow orange bars only passed the error up.</li><li><b>Right:</b> every log line that request produced, from every service, in order.</li><li><b>Raw JSON</b> switches the inspector to the full data. <b>Copy id</b> / <b>Copy JSON</b> copy it.</li></ul>
+      <div class="try"><button class="btn ghost sm" data-do="spot-reqs">Show Requests</button><button class="btn ghost sm" data-do="spot-insp">Show Inspector</button></div>` },
+  { k: "Step 5 of 5", h: "Logs: select, search, copy", b: () => `<p>The <b>Live logs</b> panel shows every service's logs together.</p>
+      <ul><li><b>Click a log line</b> to select it. Its <b>raw JSON</b> appears underneath, with <b>Copy JSON</b>, <b>Copy line</b> and <b>Copy trace id</b>. Clicking also opens that line's request in the inspector.</li><li><b>Search</b> looks through the last 10 minutes of the engine's logs: type a service, <span class="kbd">ERROR</span>, a status like <span class="kbd">502</span>, or paste a trace id. Several words must all match.</li><li><b>Only this request</b> keeps just the lines of the inspected request. <b>Pause</b> freezes the list so you can read it.</li></ul>
+      <div class="try"><button class="btn ghost sm" data-do="spot-logs">Show Logs</button></div>` },
+  { k: "Cheat sheet", h: "Everything at a glance", b: () => `<table>
+      <tr><td>Traffic</td><td>Off / 20 per sec / 60 per sec of fake customers</td></tr>
+      <tr><td>Trace sampling</td><td>Keep 100% / 25% / 5% of traces. Failed and slow traces are always kept as evidence.</td></tr>
+      <tr><td>Inject a fault</td><td>Any service or database; latency, error rate or CPU. Databases only take latency.</td></tr>
+      <tr><td>Speed / Call graph / Own vs waiting</td><td>Three views of the same incident</td></tr>
+      <tr><td>Requests filters</td><td>Problems · Failed · Slow · All, and 1m / 5m / 10m</td></tr>
+      <tr><td>Live logs</td><td>Level, service chips, search, Only this request, Pause, Clear</td></tr>
+      <tr><td>Keys</td><td><span class="kbd">?</span> open this guide · <span class="kbd">Esc</span> close it</td></tr></table>` },
+];
+let gi = 0;
+function renderGuide() {
+  const g = GUIDE[gi];
+  $("g-kicker").textContent = g.k; $("g-body").innerHTML = `<h3>${g.h}</h3>${g.b()}`;
+  $("g-dots").innerHTML = GUIDE.map((_, i) => `<i class="${i === gi ? "on" : ""}"></i>`).join("");
+  $("g-back").style.visibility = gi ? "visible" : "hidden"; $("g-next").textContent = gi === GUIDE.length - 1 ? "Done" : "Next";
+}
+function openGuide(i = 0) { gi = i; renderGuide(); $("guide").classList.add("show"); $("g-next").focus(); }
+function closeGuide() { $("guide").classList.remove("show"); try { localStorage.setItem("guideSeen", "1"); } catch {} }
+$("helpBtn").onclick = () => openGuide(0);
+$("g-x").onclick = closeGuide;
+$("guide").onclick = (e) => { if (e.target.id === "guide") closeGuide(); };
+$("g-back").onclick = () => { gi = Math.max(0, gi - 1); renderGuide(); };
+$("g-next").onclick = () => { if (gi >= GUIDE.length - 1) closeGuide(); else { gi++; renderGuide(); } };
+$("g-body").onclick = async (e) => {
+  const d = e.target.closest("[data-do]")?.dataset.do; if (!d) return;
+  if (d === "traffic") { await setLoad(20); toast("Traffic started. Give it ~15 s to learn normal."); }
+  else if (d === "break") { await inject({ id: "inventory", title: "Inventory starts failing", body: { errorRate: 0.5 } }, false); toast("Inventory is failing. Next: find the culprit."); }
+  else if (d.startsWith("spot-")) spot({ traffic: "c-load", quick: "c-quick", svcs: "a-svcs", kpis: "a-kpis", reqs: "a-reqs", insp: "a-wf", logs: "a-logs" }[d.slice(5)]);
+};
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeGuide();
+  else if (e.key === "?" && !/input|textarea|select/i.test(e.target.tagName)) openGuide(0);
+  else if ($("guide").classList.contains("show") && e.key === "ArrowRight") $("g-next").click();
+  else if ($("guide").classList.contains("show") && e.key === "ArrowLeft") $("g-back").click();
+});
+try { if (!localStorage.getItem("guideSeen")) setTimeout(() => openGuide(0), 600); } catch {}
+
+/* ─────────── loop + step nav highlight ─────────── */
+async function tick() {
+  try {
+    [A, TL, ST] = await Promise.all([api("/api/analysis"), api("/api/timeline?seconds=90"), api("/api/state")]);
+    renderTop();
+    if (VIEW === "all") await renderAll(); else { renderSymptom(); renderVerdict(); renderProof(); }
+  } catch { const c = $("status"); c.className = "chip"; c.lastChild.textContent = "Engine unreachable"; }
+}
+if (window.__SIM__) document.body.classList.add("sim");
+setView(location.hash === "#guided" ? "guided" : "all", false); setInterval(tick, 1500);
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) document.querySelectorAll("#stepper a").forEach((a) => a.classList.toggle("on", "s" + a.dataset.s === e.target.id)); }), { rootMargin: "-40% 0px -55% 0px" });
+document.querySelectorAll(".step").forEach((s) => io.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Real databases for the demo services. Host ports are deliberately unusual (55432 / 56379)
+# so they don't collide with a Postgres/Redis you may already run locally.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rca
+      POSTGRES_PASSWORD: rca
+      POSTGRES_DB: shop
+    ports: ["127.0.0.1:55432:5432"]   # loopback only: the demo password is "rca"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rca -d shop"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    # DEBUG SLEEP is how the fault injector makes Redis genuinely slow (blocks the server like a real stall).
+    command: ["redis-server", "--enable-debug-command", "yes", "--save", "", "--appendonly", "no"]
+    ports: ["127.0.0.1:56379:6379"]   # loopback only: Redis here has DEBUG enabled and no password
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

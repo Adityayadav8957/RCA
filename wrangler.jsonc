@@ -1,0 +1,8 @@
+{
+  // Static hosting for the simulation-mode demo. Build first:  npm run build:demo
+  "name": "microservice-rca",
+  "compatibility_date": "2026-10-19",
+  "assets": {
+    "directory": "./demo"
+  }
+}
